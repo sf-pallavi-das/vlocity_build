@@ -1,0 +1,30 @@
+name: Publish Pipeline
+description: Build and publish package to NPM and GitHub
+
+on:
+  push:
+    branches: [master, alpha, beta]
+
+jobs:
+  publish:
+    name: Publish Package
+    runs-on: docker
+    image: vlocitybuild
+    if: ${{ workflow.ref_name == 'master' || workflow.ref_name == 'alpha' || workflow.ref_name == 'beta' }}
+    env:
+      CI_BRANCH: ${{ workflow.ref_name }}
+      CI_COMMIT_MESSAGE: ${{ workflow.commit_message }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_FALLBACK_TOKEN: ${{ secrets.GITHUB_FALLBACK_TOKEN }}
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      GITHUB_OWNER: vlocityinc
+      GITHUB_REPO: vlocity_build
+    
+    steps:
+      - name: Checkout Code
+        uses: checkout
+        
+      - name: Run Publish Script
+        run: |
+          # Use Unify-specific publish script
+          ./.unify/scripts/publish.sh

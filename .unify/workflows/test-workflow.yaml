@@ -1,0 +1,34 @@
+name: Test Pipeline
+description: Run unit tests and Vlocity test jobs
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: docker
+    image: vlocitybuild
+    env:
+      CI_BRANCH: ${{ workflow.ref_name }}
+      CI_COMMIT_MESSAGE: ${{ workflow.commit_message }}
+      SF_TEST_ORG_CREDENTIALS: ${{ secrets.SF_TEST_ORG_CREDENTIALS }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    
+    steps:
+      - name: Checkout Code
+        uses: checkout
+        
+      - name: Setup SFDX
+        run: |
+          # SFDX should be pre-installed in Docker image
+          sf --version || sfdx --version
+          
+      - name: Run Test Script
+        run: |
+          # Use Unify-specific test script
+          ./.unify/scripts/test.sh
