@@ -54,43 +54,45 @@ jobs:
           echo "=== Running Unit Tests ==="
           npm run-script unitTest
 
-      - name: Link Package
-        uses: docker://node:18
-        run: |
-          echo "=== Linking Package ==="
-          npm link || echo "npm link failed, continuing..."
-
-      - name: Run Vlocity Test Job Verbose
+      - name: Link Package and Run Vlocity Test Job Verbose
         uses: docker://node:18
         env:
           SFDX_AUTH_URL: ${{ vars.SFDX_AUTH_URL }}
         run: |
           apt-get update && apt-get install -y jq
           npm install -g @salesforce/cli
-          npm install -g vlocity
           
+          echo "=== Re-authenticating to Salesforce ==="
           echo "$SFDX_AUTH_URL" > /tmp/authurl.txt
           sf org login sfdx-url --sfdx-url-file /tmp/authurl.txt --json 2>/dev/null > /tmp/auth_result.json
           SF_USERNAME=$(cat /tmp/auth_result.json | jq -r '.result.username')
           rm -f /tmp/authurl.txt
+          
+          echo "=== Installing dependencies and linking package ==="
+          npm install
+          npm link
           
           echo "=== Running Vlocity Test Job (Verbose) ==="
           echo "SF Username: $SF_USERNAME"
           vlocity -sfdx.username "$SF_USERNAME" runTestJob --verbose
 
-      - name: Run Vlocity Test Job JSON
+      - name: Link Package and Run Vlocity Test Job JSON
         uses: docker://node:18
         env:
           SFDX_AUTH_URL: ${{ vars.SFDX_AUTH_URL }}
         run: |
           apt-get update && apt-get install -y jq
           npm install -g @salesforce/cli
-          npm install -g vlocity
           
+          echo "=== Re-authenticating to Salesforce ==="
           echo "$SFDX_AUTH_URL" > /tmp/authurl.txt
           sf org login sfdx-url --sfdx-url-file /tmp/authurl.txt --json 2>/dev/null > /tmp/auth_result.json
           SF_USERNAME=$(cat /tmp/auth_result.json | jq -r '.result.username')
           rm -f /tmp/authurl.txt
+          
+          echo "=== Installing dependencies and linking package ==="
+          npm install
+          npm link
           
           echo "=== Running JSON Jobs - Takes up to 10 minutes ==="
           vlocity -sfdx.username "$SF_USERNAME" runTestJob --json | jq .
