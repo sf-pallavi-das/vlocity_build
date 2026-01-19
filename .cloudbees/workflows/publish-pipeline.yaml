@@ -161,7 +161,7 @@ jobs:
         uses: docker://node:18
         if: ${{ cloudbees.scm.branch == 'master' }}
         env:
-          GITHUB_TOKEN: ${{ vars.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CI_BRANCH: ${{ cloudbees.scm.branch }}
         run: |
           # Install jq and publish-release tool
