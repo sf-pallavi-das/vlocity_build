@@ -1,6 +1,6 @@
 apiVersion: automation.cloudbees.io/v1alpha1
 kind: workflow
-name: Publish Pipeline
+name: Test and Publish 
 
 on:
   push:
@@ -10,7 +10,48 @@ on:
       - beta
 
 jobs:
+  # =============================================================================
+  # TEST JOB - Must pass before publish runs (replicates CodeShip behavior)
+  # =============================================================================
+  test:
+    steps:
+      - name: Checkout Code
+        uses: cloudbees-io/checkout@v1
+
+      - name: Setup Environment
+        uses: docker://node:18
+        run: |
+          echo "Setting up environment..."
+          node --version
+          npm --version
+
+      - name: Install Dependencies
+        uses: docker://node:18
+        run: |
+          npm install
+
+      - name: Run Unit Tests
+        uses: docker://node:18
+        run: |
+          npm run-script unitTest
+
+      - name: Link Package
+        uses: docker://node:18
+        run: |
+          npm link || echo "npm link failed, continuing..."
+
+      - name: Test Summary
+        uses: docker://node:18
+        run: |
+          echo "=========================================="
+          echo "Test Pipeline - PASSED"
+          echo "=========================================="
+
+  # =============================================================================
+  # PUBLISH JOB - Only runs if test job passes
+  # =============================================================================
   publish:
+    needs: test
     steps:
       - name: Checkout Code
         uses: cloudbees-io/checkout@v1
@@ -121,7 +162,7 @@ jobs:
       #       echo "Published $NEW_VERSION to NPM (tag: $CI_BRANCH)"
       #     fi
 
-      - name: Summary
+      - name: Publish Summary
         uses: docker://node:18
         run: |
           NEW_VERSION=$(cat package.json | jq -r '.version')
