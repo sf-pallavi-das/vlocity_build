@@ -27,16 +27,21 @@ jobs:
         uses: docker://node:18
         env:
           CI_BRANCH: ${{ cloudbees.scm.branch }}
-          CI_COMMIT_MESSAGE: ${{ cloudbees.scm.commit.message }}
         run: |
+          # Get commit message using git command
+          CI_COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+          echo "Commit message: $CI_COMMIT_MESSAGE"
+          
           CURRENT_VERSION=$(npm show vlocity version 2>/dev/null || echo "0.0.1")
           echo "Current version: $CURRENT_VERSION"
           
           if [ "$CI_BRANCH" == "master" ]; then
             npm version "$CURRENT_VERSION" --no-git-tag-version --allow-same-version
             if [[ "$CI_COMMIT_MESSAGE" == *"New Minor Version"* ]]; then
+              echo "Bumping minor version"
               npm version minor --no-git-tag-version
             else
+              echo "Bumping patch version"
               npm version patch --no-git-tag-version
             fi
           else
@@ -60,9 +65,9 @@ jobs:
       - name: Build Package
         uses: docker://node:18
         run: |
-          npm run-script build || echo "Build step skipped or failed"
+          npm run-script build || echo "Build step skipped"
 
-      - name: Publish to NPM (Dry Run for Testing)
+      - name: Publish to NPM (Dry Run)
         uses: docker://node:18
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -74,11 +79,9 @@ jobs:
           echo "Would publish version: $NEW_VERSION"
           echo "Branch: $CI_BRANCH"
           
-          # DRY RUN - Remove --dry-run when ready to actually publish
+          # DRY RUN - Remove --dry-run when ready
           if [ "$CI_BRANCH" == "master" ]; then
             npm publish . --access public --dry-run
           else
             npm publish . --tag="$CI_BRANCH" --access public --dry-run
           fi
-          
-          echo "Dry run complete. Remove --dry-run to actually publish."
