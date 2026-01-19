@@ -2,10 +2,18 @@ apiVersion: automation.cloudbees.io/v1alpha1
 kind: workflow
 name: Test Pipeline
 
+# =============================================================================
+# This workflow runs tests on feature branches and PRs.
+# For master/alpha/beta branches, tests run as part of publish-workflow.yaml
+# (test job must pass before publish job runs)
+# =============================================================================
 on:
   push:
     branches:
       - '**'
+      - '!master'
+      - '!alpha'
+      - '!beta'
   pull_request:
     branches:
       - '**'
@@ -16,72 +24,59 @@ jobs:
       - name: Checkout Code
         uses: cloudbees-io/checkout@v1
 
-      - name: Install SF CLI and Authenticate
-        uses: docker://node:18
-        env:
-          SFDX_AUTH_URL: ${{ vars.SFDX_AUTH_URL }}
+      - name: Setup Environment
+        uses: docker://vlocitybuild
         run: |
-          echo "=== Installing jq and SF CLI ==="
-          apt-get update && apt-get install -y jq
-          npm install -g @salesforce/cli
-          sf --version
-          
-          echo "=== Authenticating to Salesforce ==="
-          echo "$SFDX_AUTH_URL" > /tmp/authurl.txt
-          sf org login sfdx-url --sfdx-url-file /tmp/authurl.txt --set-default --json > /tmp/auth_result.json
-          
-          SF_USERNAME=$(cat /tmp/auth_result.json | jq -r '.result.username')
-          echo "Authenticated as: $SF_USERNAME"
-          
-          sf force alias set VB_TEST_ORG="$SF_USERNAME"
-          rm -f /tmp/authurl.txt
+          echo "Setting up environment..."
+          sf --version || sfdx --version || echo "SFDX not found"
+
+      - name: Authenticate to Salesforce
+        uses: docker://vlocitybuild
+        env:
+          SF_TEST_ORG_CREDENTIALS: ${{ secrets.SF_TEST_ORG_CREDENTIALS }}
+        run: |
+          echo "Authenticating to Salesforce..."
+          if [ -n "$SF_TEST_ORG_CREDENTIALS" ]; then
+            echo "$SF_TEST_ORG_CREDENTIALS" > /tmp/sf_credentials.json
+            SF_AUTH_ORG=$(sf org login sfdx-url --sfdx-url-file /tmp/sf_credentials.json --json)
+            SF_USERNAME=$(echo "$SF_AUTH_ORG" | jq -r '.result.username')
+            echo "Authenticated as: $SF_USERNAME"
+            sf force alias set VB_TEST_ORG="$SF_USERNAME"
+            echo "SF_USERNAME=$SF_USERNAME" >> $CLOUDBEES_OUTPUTS/env
+            rm -f /tmp/sf_credentials.json
+          else
+            echo "Error: SF_TEST_ORG_CREDENTIALS not set"
+            exit 1
+          fi
 
       - name: Install Dependencies
-        uses: docker://node:18
+        uses: docker://vlocitybuild
         run: |
-          echo "=== Installing npm dependencies ==="
           npm install
 
       - name: Run Unit Tests
-        uses: docker://node:18
+        uses: docker://vlocitybuild
         run: |
-          echo "=== Running Unit Tests ==="
           npm run-script unitTest
 
       - name: Link Package
-        uses: docker://node:18
+        uses: docker://vlocitybuild
         run: |
-          echo "=== Linking Package ==="
           npm link || echo "npm link failed, continuing..."
 
-      - name: Run Vlocity Test Job Verbose
-        uses: docker://node:18
+      - name: Run Vlocity Test Job
+        uses: docker://vlocitybuild
         env:
-          SFDX_AUTH_URL: ${{ vars.SFDX_AUTH_URL }}
+          SF_TEST_ORG_CREDENTIALS: ${{ secrets.SF_TEST_ORG_CREDENTIALS }}
         run: |
-          apt-get update && apt-get install -y jq
-          npm install -g @salesforce/cli
+          # Re-authenticate for this step
+          echo "$SF_TEST_ORG_CREDENTIALS" > /tmp/sf_credentials.json
+          SF_AUTH_ORG=$(sf org login sfdx-url --sfdx-url-file /tmp/sf_credentials.json --json)
+          SF_USERNAME=$(echo "$SF_AUTH_ORG" | jq -r '.result.username')
+          rm -f /tmp/sf_credentials.json
           
-          echo "$SFDX_AUTH_URL" > /tmp/authurl.txt
-          sf org login sfdx-url --sfdx-url-file /tmp/authurl.txt --set-default --json > /tmp/auth_result.json
-          SF_USERNAME=$(cat /tmp/auth_result.json | jq -r '.result.username')
-          rm -f /tmp/authurl.txt
-          
-          echo "=== Running Vlocity Test Job (Verbose) ==="
+          echo "Running Vlocity test job..."
           vlocity -sfdx.username "$SF_USERNAME" runTestJob --verbose
-
-      - name: Run Vlocity Test Job JSON
-        uses: docker://node:18
-        env:
-          SFDX_AUTH_URL: ${{ vars.SFDX_AUTH_URL }}
-        run: |
-          apt-get update && apt-get install -y jq
-          npm install -g @salesforce/cli
           
-          echo "$SFDX_AUTH_URL" > /tmp/authurl.txt
-          sf org login sfdx-url --sfdx-url-file /tmp/authurl.txt --set-default --json > /tmp/auth_result.json
-          SF_USERNAME=$(cat /tmp/auth_result.json | jq -r '.result.username')
-          rm -f /tmp/authurl.txt
-          
-          echo "=== Running JSON Jobs - Takes up to 10 minutes ==="
+          echo "Running JSON Jobs - Takes up to 10 minutes..."
           vlocity -sfdx.username "$SF_USERNAME" runTestJob --json | jq .
