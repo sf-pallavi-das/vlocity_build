@@ -19,24 +19,23 @@ jobs:
       - name: Install SF CLI and Authenticate
         uses: docker://node:18
         env:
-          SFDX_AUTH_URL: ${{ secrets.SFDX_AUTH_URL }}
+          SF_TEST_ORG_CREDENTIALS: ${{ vars.SF_TEST_ORG_CREDENTIALS }}
         run: |
           echo "=== Installing Salesforce CLI ==="
           npm install -g @salesforce/cli
           sf --version
           
+          echo "=== Extracting SFDX Auth URL from credentials ==="
+          SFDX_AUTH_URL=$(echo "$SF_TEST_ORG_CREDENTIALS" | jq -r '.result.sfdxAuthUrl')
+          
           echo "=== Authenticating to Salesforce ==="
           echo "$SFDX_AUTH_URL" > /tmp/authurl.txt
           sf org login sfdx-url --sfdx-url-file /tmp/authurl.txt --set-default --json > /tmp/auth_result.json
-          cat /tmp/auth_result.json
           
           SF_USERNAME=$(cat /tmp/auth_result.json | jq -r '.result.username')
           echo "Authenticated as: $SF_USERNAME"
           
           sf force alias set VB_TEST_ORG="$SF_USERNAME"
-          
-          # Save for later steps
-          echo "$SF_USERNAME" > /tmp/sf_username.txt
           
           rm -f /tmp/authurl.txt
 
@@ -61,26 +60,27 @@ jobs:
       - name: Run Vlocity Test Job Verbose
         uses: docker://node:18
         env:
-          SFDX_AUTH_URL: ${{ secrets.SFDX_AUTH_URL }}
+          SF_TEST_ORG_CREDENTIALS: ${{ vars.SF_TEST_ORG_CREDENTIALS }}
         run: |
-          echo "=== Re-authenticating to Salesforce ==="
           npm install -g @salesforce/cli
+          
+          SFDX_AUTH_URL=$(echo "$SF_TEST_ORG_CREDENTIALS" | jq -r '.result.sfdxAuthUrl')
           echo "$SFDX_AUTH_URL" > /tmp/authurl.txt
           sf org login sfdx-url --sfdx-url-file /tmp/authurl.txt --set-default --json > /tmp/auth_result.json
           SF_USERNAME=$(cat /tmp/auth_result.json | jq -r '.result.username')
           rm -f /tmp/authurl.txt
           
           echo "=== Running Vlocity Test Job (Verbose) ==="
-          echo "SF Username: $SF_USERNAME"
           vlocity -sfdx.username "$SF_USERNAME" runTestJob --verbose
 
       - name: Run Vlocity Test Job JSON
         uses: docker://node:18
         env:
-          SFDX_AUTH_URL: ${{ secrets.SFDX_AUTH_URL }}
+          SF_TEST_ORG_CREDENTIALS: ${{ vars.SF_TEST_ORG_CREDENTIALS }}
         run: |
-          echo "=== Re-authenticating to Salesforce ==="
           npm install -g @salesforce/cli
+          
+          SFDX_AUTH_URL=$(echo "$SF_TEST_ORG_CREDENTIALS" | jq -r '.result.sfdxAuthUrl')
           echo "$SFDX_AUTH_URL" > /tmp/authurl.txt
           sf org login sfdx-url --sfdx-url-file /tmp/authurl.txt --set-default --json > /tmp/auth_result.json
           SF_USERNAME=$(cat /tmp/auth_result.json | jq -r '.result.username')
