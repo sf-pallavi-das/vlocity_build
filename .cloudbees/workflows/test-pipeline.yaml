@@ -21,6 +21,9 @@ jobs:
         env:
           SF_TEST_ORG_CREDENTIALS: ${{ vars.SF_TEST_ORG_CREDENTIALS }}
         run: |
+          echo "=== Installing jq ==="
+          apt-get update && apt-get install -y jq
+          
           echo "=== Installing Salesforce CLI ==="
           npm install -g @salesforce/cli
           sf --version
@@ -62,6 +65,7 @@ jobs:
         env:
           SF_TEST_ORG_CREDENTIALS: ${{ vars.SF_TEST_ORG_CREDENTIALS }}
         run: |
+          apt-get update && apt-get install -y jq
           npm install -g @salesforce/cli
           
           SFDX_AUTH_URL=$(echo "$SF_TEST_ORG_CREDENTIALS" | jq -r '.result.sfdxAuthUrl')
@@ -78,6 +82,7 @@ jobs:
         env:
           SF_TEST_ORG_CREDENTIALS: ${{ vars.SF_TEST_ORG_CREDENTIALS }}
         run: |
+          apt-get update && apt-get install -y jq
           npm install -g @salesforce/cli
           
           SFDX_AUTH_URL=$(echo "$SF_TEST_ORG_CREDENTIALS" | jq -r '.result.sfdxAuthUrl')
