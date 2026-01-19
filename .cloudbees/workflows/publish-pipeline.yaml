@@ -155,6 +155,10 @@ jobs:
         uses: docker://node:18
         if: ${{ cloudbees.scm.branch == 'master' }}
         run: |
+          echo "=== Installing pkg for building executables ==="
+          npm install -g pkg
+          
+          echo "=== Building package ==="
           npm run-script build
 
       - name: Create GitHub Release
