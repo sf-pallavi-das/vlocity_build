@@ -38,27 +38,25 @@ jobs:
           echo "=== Authenticating to Salesforce ==="
           if [ -z "$SF_LOGIN_URL" ] || [ -z "$SF_USERNAME" ] || [ -z "$SF_PASSWORD" ]; then
             echo "ERROR: Missing Salesforce credentials."
-            echo "Configure SF_LOGIN_URL (var), SF_USERNAME (var), SF_PASSWORD (secret) in CloudBees."
+            echo "Configure SF_LOGIN_URL, SF_USERNAME, SF_PASSWORD as secrets in CloudBees."
             exit 1
           fi
           
-          LOGIN_RESULT=$(curl -s --max-time 30 "${SF_LOGIN_URL}/services/oauth2/token" \
-            -d "grant_type=password" \
-            -d "client_id=PlatformCLI" \
-            -d "client_secret=" \
-            -d "username=${SF_USERNAME}" \
-            -d "password=${SF_PASSWORD}")
+          SOAP_RESPONSE=$(curl -s --max-time 30 "${SF_LOGIN_URL}/services/Soap/u/59.0" \
+            -H "Content-Type: text/xml" \
+            -H "SOAPAction: login" \
+            -d "<?xml version='1.0' encoding='utf-8'?><soap:Envelope xmlns:soap='http://schemas.xmlsoap.org/soap/envelope/' xmlns:tns='urn:partner.soap.sforce.com'><soap:Body><tns:login><tns:username>${SF_USERNAME}</tns:username><tns:password>${SF_PASSWORD}</tns:password></tns:login></soap:Body></soap:Envelope>")
           
-          ACCESS_TOKEN=$(echo "$LOGIN_RESULT" | jq -r '.access_token // empty')
-          INSTANCE_URL=$(echo "$LOGIN_RESULT" | jq -r '.instance_url // empty')
+          SESSION_ID=$(echo "$SOAP_RESPONSE" | grep -oP '<sessionId>\K[^<]+')
+          SERVER_URL=$(echo "$SOAP_RESPONSE" | grep -oP '<serverUrl>\K[^<]+' | sed 's|/services/Soap/u/.*||')
           
-          if [ -z "$ACCESS_TOKEN" ]; then
-            echo "ERROR: OAuth2 login failed. Response:"
-            echo "$LOGIN_RESULT" | jq . 2>/dev/null || echo "$LOGIN_RESULT"
+          if [ -z "$SESSION_ID" ]; then
+            echo "ERROR: SOAP login failed. Response:"
+            echo "$SOAP_RESPONSE"
             exit 1
           fi
           
-          echo "$ACCESS_TOKEN" | sf org login access-token --instance-url "$INSTANCE_URL" --no-prompt --json 2>&1
+          echo "$SESSION_ID" | sf org login access-token --instance-url "$SERVER_URL" --no-prompt --json 2>&1
           echo "Authenticated as: $SF_USERNAME"
           
           echo "=== Installing dependencies ==="
