@@ -30,10 +30,8 @@ jobs:
           SF_USERNAME: ${{ secrets.SF_USERNAME }}
           SF_PASSWORD: ${{ secrets.SF_PASSWORD }}
         run: |
-          echo "=== Installing jq and SF CLI ==="
-          apt-get update && apt-get install -y jq curl
-          npm install -g @salesforce/cli
-          sf --version
+          echo "=== Installing jq ==="
+          apt-get update && apt-get install -y jq
           
           echo "=== Authenticating to Salesforce ==="
           if [ -z "$SF_LOGIN_URL" ] || [ -z "$SF_USERNAME" ] || [ -z "$SF_PASSWORD" ]; then
@@ -41,30 +39,6 @@ jobs:
             echo "Configure SF_LOGIN_URL, SF_USERNAME, SF_PASSWORD as secrets in CloudBees."
             exit 1
           fi
-          
-          SOAP_RESPONSE=$(curl -s --max-time 30 "${SF_LOGIN_URL}/services/Soap/u/59.0" \
-            -H "Content-Type: text/xml" \
-            -H "SOAPAction: login" \
-            -d "<?xml version='1.0' encoding='utf-8'?><soap:Envelope xmlns:soap='http://schemas.xmlsoap.org/soap/envelope/' xmlns:tns='urn:partner.soap.sforce.com'><soap:Body><tns:login><tns:username>${SF_USERNAME}</tns:username><tns:password>${SF_PASSWORD}</tns:password></tns:login></soap:Body></soap:Envelope>")
-          
-          SESSION_ID=$(echo "$SOAP_RESPONSE" | sed -n 's/.*<sessionId>\([^<]*\)<\/sessionId>.*/\1/p')
-          SERVER_URL=$(echo "$SOAP_RESPONSE" | sed -n 's/.*<serverUrl>\([^<]*\)<\/serverUrl>.*/\1/p' | sed 's|/services/Soap/u/.*||')
-          
-          if [ -z "$SESSION_ID" ]; then
-            echo "ERROR: SOAP login failed. Response:"
-            echo "$SOAP_RESPONSE"
-            exit 1
-          fi
-          echo "SOAP login successful. Instance: $SERVER_URL"
-          
-          TOKEN_FILE=$(mktemp)
-          echo "$SESSION_ID" > "$TOKEN_FILE"
-          sf org login access-token --instance-url "$SERVER_URL" --no-prompt --json < "$TOKEN_FILE" 2>&1 || true
-          rm -f "$TOKEN_FILE"
-          
-          SF_ALIAS="vb_test_org"
-          sf alias set "$SF_ALIAS=$SF_USERNAME" 2>/dev/null || true
-          echo "Authenticated as: $SF_USERNAME"
           
           echo "=== Installing dependencies ==="
           npm install
@@ -76,10 +50,10 @@ jobs:
           npm link
           
           echo "=== Running Vlocity Test Job (Verbose) ==="
-          vlocity -sfdx.username "$SF_USERNAME" runTestJob --verbose
+          vlocity -sf.username "$SF_USERNAME" -sf.password "$SF_PASSWORD" -sf.loginUrl "$SF_LOGIN_URL" runTestJob --verbose
           
           echo "=== Running Vlocity Test Job (JSON) ==="
-          vlocity -sfdx.username "$SF_USERNAME" runTestJob --json | jq .
+          vlocity -sf.username "$SF_USERNAME" -sf.password "$SF_PASSWORD" -sf.loginUrl "$SF_LOGIN_URL" runTestJob --json | jq .
           
           echo "=========================================="
           echo "TEST PIPELINE - PASSED"
