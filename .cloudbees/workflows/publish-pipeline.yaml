@@ -30,21 +30,25 @@ jobs:
           sf --version
           
           echo "=== Authenticating to Salesforce ==="
-          echo "DEBUG: SFDX_AUTH_URL length = ${#SFDX_AUTH_URL}"
-          echo "DEBUG: SFDX_AUTH_URL first 10 chars = $(echo "$SFDX_AUTH_URL" | cut -c1-10)..."
-          echo "DEBUG: env vars containing SFDX:" && env | grep -i sfdx | sed 's/=.*/=<redacted>/'
           if [ -z "$SFDX_AUTH_URL" ]; then
             echo "ERROR: SFDX_AUTH_URL is not set. Configure it in CloudBees vars/secrets."
             exit 1
           fi
+          
+          ORG_HOST=$(echo "$SFDX_AUTH_URL" | sed 's/.*@//')
+          echo "DEBUG: Checking connectivity to $ORG_HOST..."
+          curl -s --max-time 10 "https://$ORG_HOST" -o /dev/null -w "HTTP status: %{http_code}\n" || echo "WARNING: Cannot reach $ORG_HOST"
+          
           AUTH_FILE=$(mktemp)
           echo "$SFDX_AUTH_URL" > "$AUTH_FILE"
-          AUTH_RESULT=$(sf org login sfdx-url --sfdx-url-file "$AUTH_FILE" --json 2>&1)
+          echo "DEBUG: Running sf org login sfdx-url (timeout 60s)..."
+          AUTH_RESULT=$(timeout 60 sf org login sfdx-url --sfdx-url-file "$AUTH_FILE" --json 2>&1) || true
           rm -f "$AUTH_FILE"
-          SF_USERNAME=$(echo "$AUTH_RESULT" | jq -r '.result.username // empty')
+          echo "DEBUG: Auth result: $(echo "$AUTH_RESULT" | head -20)"
+          SF_USERNAME=$(echo "$AUTH_RESULT" | jq -r '.result.username // empty' 2>/dev/null)
           if [ -z "$SF_USERNAME" ]; then
-            echo "ERROR: Salesforce authentication failed. Auth result:"
-            echo "$AUTH_RESULT" | jq . 2>/dev/null || echo "$AUTH_RESULT"
+            echo "ERROR: Salesforce authentication failed. Full auth result:"
+            echo "$AUTH_RESULT"
             exit 1
           fi
           echo "Authenticated as: $SF_USERNAME"
