@@ -30,8 +30,11 @@ jobs:
           sf --version
           
           echo "=== Authenticating to Salesforce ==="
+          echo "DEBUG: SFDX_AUTH_URL length = ${#SFDX_AUTH_URL}"
+          echo "DEBUG: SFDX_AUTH_URL first 10 chars = $(echo "$SFDX_AUTH_URL" | cut -c1-10)..."
+          echo "DEBUG: env vars containing SFDX:" && env | grep -i sfdx | sed 's/=.*/=<redacted>/'
           if [ -z "$SFDX_AUTH_URL" ]; then
-            echo "ERROR: SFDX_AUTH_URL is not set. Configure it in CloudBees vars."
+            echo "ERROR: SFDX_AUTH_URL is not set. Configure it in CloudBees vars/secrets."
             exit 1
           fi
           AUTH_FILE=$(mktemp)
