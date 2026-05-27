@@ -19,7 +19,7 @@ jobs:
         uses: cloudbees-io/checkout@v1
 
       - name: Run Tests
-        uses: docker://node:18
+        uses: docker://node:22
         env:
           SFDX_AUTH_URL: ${{ vars.SFDX_AUTH_URL }}
           SF_DISABLE_TELEMETRY: "true"
@@ -29,7 +29,7 @@ jobs:
           apt-get update && apt-get install -y jq
           npm install -g @salesforce/cli
           sf --version
-          
+
           echo "=== Authenticating to Salesforce ==="
           if [ -z "$SFDX_AUTH_URL" ]; then
             echo "ERROR: SFDX_AUTH_URL is empty. Please set vars.SFDX_AUTH_URL in CloudBees."
@@ -50,22 +50,22 @@ jobs:
             exit 1
           fi
           echo "Authenticated as: $SF_USERNAME"
-          
+
           echo "=== Installing dependencies ==="
           npm install
-          
+
           echo "=== Running Unit Tests ==="
           npm run-script unitTest
-          
+
           echo "=== Linking package ==="
           npm link
-          
+
           echo "=== Running Vlocity Test Job (Verbose) ==="
           vlocity -sfdx.username "$SF_USERNAME" runTestJob --verbose
-          
+
           echo "=== Running Vlocity Test Job (JSON) ==="
           vlocity -sfdx.username "$SF_USERNAME" runTestJob --json | jq .
-          
+
           echo "=========================================="
           echo "TEST PIPELINE - PASSED"
           echo "=========================================="
@@ -80,24 +80,24 @@ jobs:
         uses: cloudbees-io/checkout@v1
 
       - name: Version, Build, and Publish
-        uses: docker://node:18
+        uses: docker://node:22
         env:
           CI_BRANCH: ${{ cloudbees.scm.branch }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           apt-get update && apt-get install -y jq curl
-          
+
           echo "=== Determining version ==="
           CI_COMMIT_MESSAGE=$(git log -1 --pretty=%B)
-          
+
           CURRENT_VERSION=$(npm show vlocity version 2>/dev/null)
           if [ -z "$CURRENT_VERSION" ]; then
             echo "WARNING: Could not fetch current version from npm registry. Defaulting to 0.0.1"
             CURRENT_VERSION="0.0.1"
           fi
           echo "Current version: $CURRENT_VERSION"
-          
+
           if [ "$CI_BRANCH" == "master" ]; then
             npm version "$CURRENT_VERSION" --no-git-tag-version --allow-same-version
             if [[ "$CI_COMMIT_MESSAGE" == *"New Minor Version"* ]]; then
@@ -116,26 +116,26 @@ jobs:
             fi
             npm version prerelease --no-git-tag-version
           fi
-          
+
           NEW_VERSION=$(cat package.json | jq -r '.version')
           echo "New version: $NEW_VERSION"
-          
+
           echo "=== Installing dependencies ==="
           npm install
-          
+
           if [ "$CI_BRANCH" == "master" ]; then
             echo "=== Building package ==="
             npm cache clean --force
             npm install -g pkg --force
             npm run-script build
-            
+
             echo "=== Creating GitHub Release ==="
             npm install -g publish-release
             GITHUB_ASSETS="dist/vlocity-linux,dist/vlocity-macos,dist/vlocity-win.exe"
-            
+
             EXISTING_RELEASE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
               "https://api.github.com/repos/vlocityinc/vlocity_build/releases/tags/v$NEW_VERSION" || echo "{}")
-            
+
             if echo "$EXISTING_RELEASE" | grep -q '"id"'; then
               echo "Release v$NEW_VERSION already exists. Skipping creation."
             else
@@ -148,15 +148,15 @@ jobs:
                 --name "v$NEW_VERSION" \
                 --tag "v$NEW_VERSION" \
                 --assets "$GITHUB_ASSETS" || echo "GitHub release creation failed, continuing..."
-              
+
               echo "GitHub release created: v$NEW_VERSION"
             fi
           fi
-          
+
           echo "=== Publishing to NPM ==="
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc
           npm whoami
-          
+
           if [ "$CI_BRANCH" == "master" ]; then
             npm publish . --access public
             echo "Published $NEW_VERSION to NPM (latest)"
@@ -164,7 +164,7 @@ jobs:
             npm publish . --tag="$CI_BRANCH" --access public
             echo "Published $NEW_VERSION to NPM (tag: $CI_BRANCH)"
           fi
-          
+
           echo "=========================================="
           echo "PUBLISH PIPELINE - COMPLETED"
           echo "=========================================="
