@@ -1,4 +1,4 @@
-FROM node:18
+FROM node:22
 RUN dpkg --add-architecture i386
 
 RUN apt-get update

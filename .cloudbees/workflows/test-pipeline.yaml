@@ -24,7 +24,7 @@ jobs:
         uses: cloudbees-io/checkout@v1
 
       - name: Run Tests
-        uses: docker://node:18
+        uses: docker://node:22
         env:
           SFDX_AUTH_URL: ${{ vars.SFDX_AUTH_URL }}
           SF_DISABLE_TELEMETRY: "true"
@@ -34,7 +34,7 @@ jobs:
           apt-get update && apt-get install -y jq
           npm install -g @salesforce/cli
           sf --version
-          
+
           echo "=== Authenticating to Salesforce ==="
           if [ -z "$SFDX_AUTH_URL" ]; then
             echo "ERROR: SFDX_AUTH_URL is empty. Please set vars.SFDX_AUTH_URL in CloudBees."
@@ -55,22 +55,22 @@ jobs:
             exit 1
           fi
           echo "Authenticated as: $SF_USERNAME"
-          
+
           echo "=== Installing dependencies ==="
           npm install
-          
+
           echo "=== Running Unit Tests ==="
           npm run-script unitTest
-          
+
           echo "=== Linking package ==="
           npm link
-          
+
           echo "=== Running Vlocity Test Job (Verbose) ==="
           vlocity -sfdx.username "$SF_USERNAME" runTestJob --verbose
-          
+
           echo "=== Running Vlocity Test Job (JSON) ==="
           vlocity -sfdx.username "$SF_USERNAME" runTestJob --json | jq .
-          
+
           echo "=========================================="
           echo "TEST PIPELINE - PASSED"
           echo "=========================================="
